@@ -1,0 +1,69 @@
+# Project Specification
+
+In this project, you will implement a key-value store backed by a **copy-on-write trie**.  
+Tries are efficient ordered-tree data structures for retrieving a value for a given key.  
+
+To simplify the explanation, we will assume that the **keys are variable-length strings**, but in practice they can be any arbitrary type.
+
+---
+
+## Trie Structure
+- Each node in a trie can have multiple child nodes representing different possible next characters.
+- The key-value store can store string keys mapped to values of any type.
+- The value of a key is stored in the node representing the **last character of that key** (also called the **terminal node**).
+
+---
+
+## Example
+Consider inserting the key-value pairs:
+
+- `(1980,"harvard")`
+- `(1982, "stanford")`
+
+The trie would look like this:
+
+<img width="747" height="709" alt="image" src="https://github.com/user-attachments/assets/99bf7daf-3449-4e59-915b-94c4b79bd9f3" />
+
+The two keys share the same parent node.  
+- The value `harvard` corresponding to key `"8"` is stored in the **left child**.  
+- The value `"stanford"` corresponding to key `"2"` is stored in the **right child**.
+
+# Task #1 - Copy-On-Write Trie
+
+In this task, you will need to implement a **copy-on-write trie**.
+
+---
+
+## Copy-On-Write Concept
+- Operations do **not directly modify** the nodes of the original trie.  
+- Instead:
+  1. New nodes are created for the modified data.  
+  2. A **new root** is returned for the newly modified trie.  
+- Copy-on-write allows the trie to be accessed **after each operation at any time** with **minimal overhead**.
+
+---
+
+## Example
+Consider inserting `(1983, "CMU")` into the trie from the previous example:
+
+- We create a **new root node** .  
+- We **reuse** the existing child nodes from the original trie.  
+- We create a **new value node** for `3`.  
+
+This way:
+- The old trie remains intact (immutable).  
+- The new trie includes the inserted key-value pair without affecting prior versions.  
+
+<img width="986" height="709" alt="image" src="https://github.com/user-attachments/assets/4d9be986-86f8-48a8-a9e1-b3c01fd9c955" />
+
+## Additional Example
+
+If we then:
+
+Remove `(1980, "harvard")`  
+
+We obtain the following updated trie:
+
+<img width="1191" height="674" alt="image" src="https://github.com/user-attachments/assets/36d624ba-1d6d-4da8-a837-8c27bcbf08d9" />
+
+
