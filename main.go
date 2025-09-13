@@ -19,7 +19,8 @@ type result struct {
 func main() {
 
 	var store atomic.Pointer[trie]
-	store.Store(&trie{})
+	var newNode = getNode()
+	store.Store(newNode)
 
 	var channelWg sync.WaitGroup
 	var insertingWg sync.WaitGroup
@@ -87,9 +88,9 @@ func insertWithCloningTheRoot(year int, uniName string, store *atomic.Pointer[tr
 	for {
 
 		var rootNode *trie = store.Load()
-		var oldRoot *trie = rootNode.clone()
+		var reversedYear = reverseInteger(year)
 		var lastDigit int
-		var decreasingYear int = year
+		var decreasingYear int = reversedYear
 		var newRootNode *trie = rootNode.clone()
 		var nodeForiterationPRoot *trie = rootNode
 		var nodeForiterationNRoot *trie = newRootNode
@@ -117,7 +118,7 @@ func insertWithCloningTheRoot(year int, uniName string, store *atomic.Pointer[tr
 			}
 		}
 
-		if store.CompareAndSwap(oldRoot, newRootNode) {
+		if store.CompareAndSwap(rootNode, newRootNode) {
 			return
 		}
 
@@ -130,7 +131,8 @@ func search(channelWg *sync.WaitGroup, searchChannel chan<- result, store *atomi
 
 	rootNode := store.Load()
 	var lastDigit int
-	var decreasingYear int = year
+	var reversedYear = reverseInteger(year)
+	var decreasingYear int = reversedYear
 	var nodeForiteration *trie = rootNode
 
 	for decreasingYear > 0 {
@@ -164,11 +166,11 @@ func deleteWithCloningTheRoot(year int, uniName string, store *atomic.Pointer[tr
 	defer wg.Done()
 
 	for {
-
 		var rootNode *trie = store.Load()
 		var oldRoot *trie = rootNode.clone()
+		var reversedYear = reverseInteger(year)
 		var lastDigit int
-		var decreasingYear int = year
+		var decreasingYear int = reversedYear
 		var newRootNode *trie = rootNode.clone()
 		var nodeForiterationPRoot *trie = rootNode
 		var nodeForiterationNRoot *trie = newRootNode
@@ -209,32 +211,22 @@ func deleteWithCloningTheRoot(year int, uniName string, store *atomic.Pointer[tr
 	}
 }
 
-func insert(rootNode *trie, year int, uniName string) {
 
-	// check if the number exists int the childrens of the rootNode
-	// if not create one && if yes iterate the children now with the number we check
+func reverseInteger(year int) int {
 
-	var lastDigit int
-	var decreasingYear int = year
-	var nodeForiteration *trie = rootNode
+	var newInt int
+	var decreasingYear int = year 
+    var lastDigit int = year % 10
+
+	fmt.Println("Reached here")
 
 	for decreasingYear > 0 {
+		newInt = lastDigit * 10 + lastDigit 
 
-		lastDigit = decreasingYear % 10
-		decreasingYear = decreasingYear / 10
+	    decreasingYear = decreasingYear / 10
+	    lastDigit = decreasingYear % 10 
+	} 
 
-		if nodeForiteration.childrens[lastDigit] != nil {
-			nodeForiteration = nodeForiteration.childrens[lastDigit]
-			continue
-		}
-
-		newNode := getNode()
-		nodeForiteration.childrens[lastDigit] = newNode
-		nodeForiteration = newNode
-
-		if decreasingYear == 0 {
-			nodeForiteration.uniName = uniName
-		}
-	}
+	return newInt
 
 }
