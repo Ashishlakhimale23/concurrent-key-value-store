@@ -2,231 +2,145 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"sync/atomic"
 )
 
-type trie struct {
-	uniName   string
-	childrens [10]*trie
-}
-
-type result struct {
-	uniname *string
-	root    *trie
+type node struct {
+	childrens [10]*node
+	uniname   string
 }
 
 func main() {
 
-	var store atomic.Pointer[trie]
-	var newNode = getNode()
-	store.Store(newNode)
-
-	var channelWg sync.WaitGroup
-	var insertingWg sync.WaitGroup
-	var valueGaurd map[*string]*trie = make(map[*string]*trie)
-
-	searchChannel := make(chan result, 5)
-
-	insertingWg.Add(2)
-	go insertWithCloningTheRoot(1270, "harvard", &store, &insertingWg)
-	go insertWithCloningTheRoot(3270, "stanford", &store, &insertingWg)
-	insertingWg.Wait()
-
-	channelWg.Add(2)
-	go search(&channelWg, searchChannel, &store, 1270, valueGaurd)
-	go search(&channelWg, searchChannel, &store, 3270, valueGaurd)
-
-	go func() {
-		channelWg.Wait()
-		close(searchChannel)
-	}()
-
-	for res := range searchChannel {
-		fmt.Println(res)
-	}
+	Newnode := getNewNode()
+	rootNode := atomic.Pointer[node]{}
+	rootNode.Store(Newnode)
 
 }
 
-func (node *trie) clone() *trie {
-	if node == nil {
-		return nil
-	}
-	newNode := getNode()
-	newNode.uniName = node.uniName
+func (n *node) childrensExists() bool {
 	for i := 0; i < 10; i++ {
-		newNode.childrens[i] = node.childrens[i]
-	}
-	return newNode
-}
-
-func (node *trie) nonNilChildren() bool {
-	if node == nil {
-		return true
-	}
-	for i := 0; i < 10; i++ {
-		if node.childrens[i] != nil {
-			return false
+		if n.childrens[i] != nil {
+			return true
 		}
 	}
-	return true
+	return false
 }
-func getNode() *trie {
-	var newNode = &trie{}
-	newNode.uniName = ""
 
+func getNewNode() *node {
+	var newNode node
 	for i := 0; i < 10; i++ {
 		newNode.childrens[i] = nil
 	}
+	newNode.uniname = ""
+
+	return &newNode
+}
+
+func (n *node) clone() *node {
+	newNode := getNewNode()
+
+	newNode.uniname = n.uniname
+	for i := 0; i < 10; i++ {
+		newNode.childrens[i] = n.childrens[i]
+	}
 
 	return newNode
 }
 
-func insertWithCloningTheRoot(year int, uniName string, store *atomic.Pointer[trie], wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func Insert(year int, uniname string, rootNode *atomic.Pointer[node]) {
 	for {
 
-		var rootNode *trie = store.Load()
-		var reversedYear = reverseInteger(year)
-		var lastDigit int
-		var decreasingYear int = reversedYear
-		var newRootNode *trie = rootNode.clone()
-		var nodeForiterationPRoot *trie = rootNode
-		var nodeForiterationNRoot *trie = newRootNode
+		var rootnode *node = rootNode.Load()
+		var newRootNode *node = rootnode.clone()
+		var current *node = newRootNode
+		var yearString string = fmt.Sprintf("%d", year)
 
-		for decreasingYear > 0 {
+		for i := 0; i < len(yearString); i++ {
+			child := rune(yearString[i]) - '0'
 
-			lastDigit = decreasingYear % 10
-			decreasingYear = decreasingYear / 10
-
-			if nodeForiterationPRoot.childrens[lastDigit] != nil {
-				// clone the childrens and then set the children to nodeforiteration and continue
-				nodeForiterationNRoot.childrens[lastDigit] = nodeForiterationPRoot.childrens[lastDigit].clone()
-				nodeForiterationNRoot = nodeForiterationNRoot.childrens[lastDigit]
-				nodeForiterationPRoot = nodeForiterationPRoot.childrens[lastDigit]
-				fmt.Printf("Digit %d, PRoot: %p, NRoot: %p\n", lastDigit, nodeForiterationPRoot, nodeForiterationNRoot)
+			if current.childrens[child] != nil && i != len(yearString)-1 {
+				current.childrens[child] = current.childrens[child].clone()
+				current = current.childrens[child]
 				continue
 			}
 
-			newNode := getNode()
-			nodeForiterationNRoot.childrens[lastDigit] = newNode
-			nodeForiterationNRoot = newNode
-
-			if decreasingYear == 0 {
-				nodeForiterationNRoot.uniName = uniName
-			}
+			current.childrens[child] = getNewNode()
+			current = current.childrens[child]
 		}
 
-		if store.CompareAndSwap(rootNode, newRootNode) {
-			return
-		}
-
-	}
-}
-
-func search(channelWg *sync.WaitGroup, searchChannel chan<- result, store *atomic.Pointer[trie], year int, valueGaurd map[*string]*trie) {
-
-	defer channelWg.Done()
-
-	rootNode := store.Load()
-	var lastDigit int
-	var reversedYear = reverseInteger(year)
-	var decreasingYear int = reversedYear
-	var nodeForiteration *trie = rootNode
-
-	for decreasingYear > 0 {
-
-		lastDigit = decreasingYear % 10
-		decreasingYear = decreasingYear / 10
-
-		if nodeForiteration.childrens[lastDigit] != nil && decreasingYear != 0 {
-			nodeForiteration = nodeForiteration.childrens[lastDigit]
-			continue
-		} else if nodeForiteration.childrens[lastDigit] != nil && decreasingYear == 0 {
-			valueGaurd[&nodeForiteration.childrens[lastDigit].uniName] = rootNode
-			res := result{
-				uniname: &nodeForiteration.childrens[lastDigit].uniName,
-				root:    rootNode,
-			}
-			searchChannel <- res
+		current.uniname = uniname
+		if rootNode.CompareAndSwap(newRootNode, newRootNode) {
 			return
 		}
 	}
-
-	notFound := "not found"
-	res := result{
-		uniname: &notFound,
-		root:    &trie{},
-	}
-	searchChannel <- res
 }
 
-func deleteWithCloningTheRoot(year int, uniName string, store *atomic.Pointer[trie], wg *sync.WaitGroup) {
-	defer wg.Done()
+func Delete(year int, uniname string, rootNode *atomic.Pointer[node]) {
 
 	for {
-		var rootNode *trie = store.Load()
-		var oldRoot *trie = rootNode.clone()
-		var reversedYear = reverseInteger(year)
-		var lastDigit int
-		var decreasingYear int = reversedYear
-		var newRootNode *trie = rootNode.clone()
-		var nodeForiterationPRoot *trie = rootNode
-		var nodeForiterationNRoot *trie = newRootNode
 
-		for decreasingYear > 0 {
+		rootnode := rootNode.Load()
+		if rootnode == nil {
+			fmt.Println("The rootnode is nil")
+			return
+		}
+		newRoot := rootnode.clone()
+		current := newRoot
+		yearString := fmt.Sprintf("%v", year)
 
-			lastDigit = decreasingYear % 10
-			decreasingYear = decreasingYear / 10
+		for i := 0; i < len(yearString); i++ {
 
-			if nodeForiterationPRoot.childrens[lastDigit] == nil && decreasingYear != 0 {
-				// no value found
-				return
+			child := rune(yearString[i]) - '0'
 
-			} else if nodeForiterationPRoot.childrens[lastDigit] != nil && decreasingYear > 0 {
-				// clone the childrens and then set the children to nodeforiteration and continue
-				nodeForiterationNRoot.childrens[lastDigit] = nodeForiterationPRoot.childrens[lastDigit].clone()
-				nodeForiterationNRoot = nodeForiterationNRoot.childrens[lastDigit]
-				nodeForiterationPRoot = nodeForiterationPRoot.childrens[lastDigit]
-				fmt.Printf("Digit %d, PRoot: %p, NRoot: %p\n", lastDigit, nodeForiterationPRoot, nodeForiterationNRoot)
+			if current.childrens[child] != nil && i != len(yearString)-1 {
+				current.childrens[child] = current.childrens[child].clone()
+				current = current.childrens[child]
 				continue
-			} else if nodeForiterationPRoot.childrens[lastDigit] != nil && decreasingYear == 0 && nodeForiterationPRoot.childrens[lastDigit].uniName == uniName {
-				nodeForiterationNRoot.childrens[lastDigit] = nodeForiterationPRoot.childrens[lastDigit].clone()
-				// if there are any non nil childrens then keep or just delete it
-				nodeForiterationNRoot.childrens[lastDigit].uniName = ""
+			}
 
-				check := nodeForiterationNRoot.childrens[lastDigit].nonNilChildren()
-				if check {
-					nodeForiterationNRoot.childrens[lastDigit] = nil
+			if current.childrens[child] != nil && current.childrens[child].uniname == uniname && i == len(yearString)-1 {
+				// delete here ...
+				current.childrens[child] = current.childrens[child].clone()
+				current = current.childrens[child]
+				current.uniname = ""
+				if !current.childrensExists() {
+					current = nil
 				}
 			}
 		}
 
-		// add the new root here
-		if store.CompareAndSwap(oldRoot, newRootNode) {
+		if rootNode.CompareAndSwap(newRoot, rootnode) {
 			return
 		}
-
 	}
 }
 
+func Search(year int, uniname string, rootNode *atomic.Pointer[node]) {
 
-func reverseInteger(year int) int {
+	rootnode := rootNode.Load()
 
-	var newInt int
-	var decreasingYear int = year 
-    var lastDigit int = year % 10
+	if rootnode == nil {
+		return
+	}
 
-	fmt.Println("Reached here")
+	var traversingNode *node = rootnode
+	yearString := fmt.Sprintf("%v", year)
 
-	for decreasingYear > 0 {
-		newInt = lastDigit * 10 + lastDigit 
+	for i := 0; i < len(yearString); i++ {
 
-	    decreasingYear = decreasingYear / 10
-	    lastDigit = decreasingYear % 10 
-	} 
+		child := rune(yearString[i]) - '0'
 
-	return newInt
+		if traversingNode.childrens[child] != nil && i != len(yearString)-1 {
+			traversingNode = traversingNode.childrens[child]
+			continue
+		}
 
+		if traversingNode.childrens[child] != nil && traversingNode.childrens[child].uniname == uniname && i == len(yearString)-1 {
+			fmt.Printf("found : %v \n", traversingNode.childrens[child].uniname)
+			return
+		}
+	}
+	fmt.Printf("not found : %v \n", uniname)
 }
+
