@@ -69,6 +69,7 @@ We obtain the following updated trie:
 # Task #2 — Concurrent Key-Value Store (Specification & Design)
 
 Below is a clear, self-contained design and checklist for implementing a **concurrent key-value store** backed by your **copy-on-write trie**. This focuses on the concurrency guarantees you specified: **multiple concurrent readers** and **writers that don't block readers** (readers see consistent snapshots). 
+
 ---
 
 ## Goal (restatement)
