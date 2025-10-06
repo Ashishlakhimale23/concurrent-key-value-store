@@ -18,7 +18,7 @@ To simplify the explanation, we will assume that the **keys are variable-length 
 Consider inserting the key-value pairs:
 
 - `(1980,"harvard")`
-- `(1982, "stanford")`
+- `(1982,"stanford")`
 
 The trie would look like this:
 
@@ -68,21 +68,20 @@ We obtain the following updated trie:
 
 # Task #2 — Concurrent Key-Value Store (Specification & Design)
 
-Below is a clear, self-contained design and checklist for implementing a **concurrent key-value store** backed by your **copy-on-write trie**. This focuses on the concurrency guarantees you specified: **multiple concurrent readers** and **writers that don't block readers** (readers see consistent snapshots). It also covers lifetime safety for pointers (the `ValueGuard` concept), writer correctness, and practical notes (reclamation, testing, pitfalls).
-
+Below is a clear, self-contained design and checklist for implementing a **concurrent key-value store** backed by your **copy-on-write trie**. This focuses on the concurrency guarantees you specified: **multiple concurrent readers** and **writers that don't block readers** (readers see consistent snapshots). 
 ---
 
 ## Goal (restatement)
 Implement a thread-safe key-value store with these operations:
 
-- `Get -> ValueGuard`  
-- `Insert ` (no return)  
+- `Search` (no return)  
+- `Insert` (no return)  
 - `Delete` (no return)
 
 **Concurrency properties:**
 - Multiple readers run concurrently without blocking each other.
 - Readers never block writers; writers never block readers.
-- Writes produce new versions (copy-on-write). Readers that hold a `ValueGuard` must remain safe even if the key is deleted or overwritten later.
+- Writes produce new versions (copy-on-write). 
 - The store must not lose updates (concurrent writers handled safely).
 
 ---
@@ -94,17 +93,11 @@ Implement a thread-safe key-value store with these operations:
 2. **Copy-on-write semantics for writers**  
    Writers clone required nodes along the path and build a new root representing the updated trie. They **install** the new root atomically.
 
-3. **ValueGuard (per-Get handle)**  
-   `Get` returns a small object (the `ValueGuard`) that contains:
-   - a pointer to the value stored inside the trie node (not a stack/local copy),
-   - a reference to the root object that was active when the `Get` ran (to pin the snapshot and prevent reclamation).
-   Holding `ValueGuard` ensures the value pointer is valid.
-
-4. **Writers use CAS (compare-and-swap)**  
+3. **Writers use CAS (compare-and-swap)**  
    To avoid lost updates when there are concurrent writers, use CAS semantics: read `oldRoot`, build `newRoot`, `CompareAndSwap(oldRoot, newRoot)`. If CAS fails, retry from the new `oldRoot`.
 
-5. **Rely on Go GC for reclamation**  
-   In Go, the `ValueGuard`’s root reference keeps that root reachable; when all guards referencing a root are dropped, the root becomes eligible for GC. No manual refcounting required.
+
+
 
 
 
